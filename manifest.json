@@ -1,0 +1,26 @@
+{
+  "name": "Weather Forecast",
+  "short_name": "Weather",
+  "description": "A 5-day weather forecast for your location or any city, installable as an app.",
+  "start_url": "/weather-forecast-app/index.html",
+  "scope": "/weather-forecast-app/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a1a2e",
+  "theme_color": "#4a90d9",
+  "categories": ["weather", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

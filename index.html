@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Weather Forecast</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4a90d9">
+
+  <!-- iOS "Add to Home Screen" support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Weather">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <style>
+    :root {
+      --bg:#1a1a2e; --surface:#22223a; --surface2:#2c2c48; --border:#3a3a5c;
+      --text:#e8e8f0; --muted:#a0a0c0; --accent:#4a90d9; --accent-h:#3a7ac0;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100%}
+    body{display:flex;flex-direction:column;align-items:center;padding:24px 16px 60px}
+
+    .topbar{width:100%;max-width:420px;display:flex;align-items:center;gap:10px;margin-bottom:20px}
+    .brand{font-size:20px;font-weight:700}
+
+    .weather-card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;display:flex;flex-direction:column;gap:16px}
+    .weather-head{display:flex;align-items:center;justify-content:space-between}
+    .weather-title{font-size:14px;font-weight:600;color:var(--muted)}
+    .weather-loc{font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit}
+    .weather-now{display:flex;align-items:center;gap:16px}
+    .weather-now-icon{font-size:48px}
+    .weather-now-temp{font-size:36px;font-weight:700}
+    .weather-now-desc{font-size:13px;color:var(--muted)}
+    .weather-days{display:flex;gap:8px}
+    .weather-day{flex:1;background:var(--surface2);border-radius:8px;padding:10px 4px;text-align:center;font-size:12px}
+    .weather-day-name{color:var(--muted);margin-bottom:6px}
+    .weather-day-icon{font-size:22px;margin-bottom:4px}
+    .weather-day-temps{font-weight:600}
+    .weather-day-temps .lo{color:var(--muted);font-weight:400}
+    .weather-msg{font-size:13px;color:var(--muted);text-align:center;padding:20px 0}
+    .weather-msg button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;margin-top:12px}
+    .weather-msg button:hover{background:var(--accent-h)}
+    .weather-msg .secondary{background:transparent;color:var(--accent);text-decoration:underline;padding:6px}
+    .footer-note{margin-top:18px;font-size:11px;color:var(--muted);text-align:center;max-width:420px}
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <span style="font-size:22px">🌤</span>
+    <span class="brand">Weather Forecast</span>
+  </div>
+
+  <div class="weather-card" id="weatherCard">
+    <div class="weather-head">
+      <span class="weather-title">5-day forecast</span>
+      <button class="weather-loc" id="weatherLoc">Set location</button>
+    </div>
+    <div id="weatherBody">
+      <div class="weather-msg" id="weatherMsg">
+        Get a 5-day forecast for where you are.
+        <div><button onclick="requestWeatherLocation()">Use my location</button></div>
+        <div><button class="secondary" onclick="searchWeatherCity()">Search a city instead</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">Forecast data from Open-Meteo — free, no account needed. Your location stays on this device.</div>
+
+<script>
+const get = k => localStorage.getItem(k) || '';
+const set = (k, v) => localStorage.setItem(k, v);
+
+const WMO_ICON = {0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',48:'🌫',51:'🌦',53:'🌦',55:'🌧',56:'🌧',57:'🌧',61:'🌧',63:'🌧',65:'🌧',66:'🌧',67:'🌧',71:'🌨',73:'🌨',75:'❄️',77:'❄️',80:'🌦',81:'🌧',82:'⛈',85:'🌨',86:'❄️',95:'⛈',96:'⛈',99:'⛈'};
+const WMO_DESC = {0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',56:'Freezing drizzle',57:'Freezing drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',67:'Freezing rain',71:'Light snow',73:'Snow',75:'Heavy snow',77:'Snow grains',80:'Rain showers',81:'Rain showers',82:'Violent showers',85:'Snow showers',86:'Snow showers',95:'Thunderstorm',96:'Thunderstorm',99:'Thunderstorm'};
+
+function requestWeatherLocation(){
+  const msg = document.getElementById('weatherMsg');
+  if(!navigator.geolocation){ searchWeatherCity(); return; }
+  if(msg) msg.textContent = 'Finding your location…';
+  navigator.geolocation.getCurrentPosition(
+    pos => { set('weatherCity',''); loadWeather(pos.coords.latitude, pos.coords.longitude); },
+    () => searchWeatherCity(),
+    {timeout:8000}
+  );
+}
+
+function searchWeatherCity(){
+  const city = prompt('Enter a city name for the forecast:');
+  if(!city) return;
+  const body = document.getElementById('weatherBody');
+  body.innerHTML = '<div class="weather-msg">Searching…</div>';
+  fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`)
+    .then(r => r.json())
+    .then(data => {
+      if(!data.results || !data.results.length){
+        body.innerHTML = '<div class="weather-msg">City not found. <div><button onclick="searchWeatherCity()">Try another name</button></div></div>';
+        return;
+      }
+      const loc = data.results[0];
+      set('weatherCity', `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}`);
+      loadWeather(loc.latitude, loc.longitude);
+    })
+    .catch(() => {
+      body.innerHTML = '<div class="weather-msg">Could not search that city. Check your connection and try again. <div><button onclick="searchWeatherCity()">Retry</button></div></div>';
+    });
+}
+
+function loadWeather(lat, lon){
+  set('weatherLat', lat); set('weatherLon', lon);
+  const body = document.getElementById('weatherBody');
+  body.innerHTML = '<div class="weather-msg">Loading forecast…</div>';
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto&forecast_days=5`)
+    .then(r => r.json())
+    .then(renderWeather)
+    .catch(() => {
+      body.innerHTML = '<div class="weather-msg">Could not load the forecast. Check your connection and try again. <div><button onclick="requestWeatherLocation()">Retry</button></div></div>';
+    });
+}
+
+function renderWeather(data){
+  const body = document.getElementById('weatherBody');
+  const loc = document.getElementById('weatherLoc');
+  loc.textContent = get('weatherCity') || 'Change location';
+  const cur = data.current, days = data.daily;
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let daysHtml = '';
+  for(let i = 0; i < days.time.length; i++){
+    const d = new Date(days.time[i] + 'T00:00:00');
+    const name = i === 0 ? 'Today' : dayNames[d.getDay()];
+    const code = days.weather_code[i];
+    daysHtml += `<div class="weather-day"><div class="weather-day-name">${name}</div><div class="weather-day-icon">${WMO_ICON[code] || '❓'}</div><div class="weather-day-temps">${Math.round(days.temperature_2m_max[i])}° <span class="lo">${Math.round(days.temperature_2m_min[i])}°</span></div></div>`;
+  }
+  body.innerHTML = `<div class="weather-now"><div class="weather-now-icon">${WMO_ICON[cur.weather_code] || '❓'}</div><div><div class="weather-now-temp">${Math.round(cur.temperature_2m)}°F</div><div class="weather-now-desc">${WMO_DESC[cur.weather_code] || ''}</div></div></div><div class="weather-days">${daysHtml}</div>`;
+}
+
+document.getElementById('weatherLoc').onclick = searchWeatherCity;
+const savedLat = get('weatherLat'), savedLon = get('weatherLon');
+if(savedLat && savedLon) loadWeather(savedLat, savedLon);
+
+// Register service worker for PWA / offline support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
